@@ -1,0 +1,61 @@
+# Nombre exacto requerido por la guía de la tarea
+name: ci.yml
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+# Permisos necesarios para interactuar con los paquetes de GitHub
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 1. Descargar el código fuente
+      uses: actions/checkout@v4
+
+    - name: 2. Configurar el entorno de Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: 3. Instalar dependencias
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: 4. Ejecutar pruebas automatizadas
+      run: |
+        pytest
+
+    - name: 5. Ejecutar la aplicación
+      run: |
+        echo "Validando el inicio correcto de la aplicación de forma local..."
+        # Ejecutamos una comprobación pasiva para asegurar que compila bien sin bloquear el runner
+        python -c "import app; print('App cargada con éxito')"
+
+    - name: 6. Simular fase de despliegue
+      run: |
+        echo "Iniciando entorno de despliegue simulado..."
+        echo "Despliegue completado con éxito."
+
+    - name: 7. Autenticarse en GitHub Container Registry
+      # Usamos el token nativo del sistema sin necesidad de configurar secretos manuales
+      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+    - name: 8. Construir la imagen Docker (Nomenclatura de la Rúbrica)
+      # Forzamos las minúsculas en el nombre del usuario para evitar errores de Docker
+      run: |
+        USER_LOWER=$(echo "${{ github.actor }}" | tr '[:upper:]' '[:lower:]')
+        docker build -t ghcr.io/$USER_LOWER/ejercicio:3.0.0 .
+        echo "USER_LOWER=$USER_LOWER" >> $GITHUB_ENV
+
+    - name: 9. Publicar la imagen generada en GHCR
+      run: |
+        docker push ghcr.io/${{ env.USER_LOWER }}/ejercicio:3.0.0
