@@ -47,7 +47,7 @@ jobs:
 
     - name: 7. Autenticarse en GitHub Container Registry
       # Usamos el token nativo del sistema sin necesidad de configurar secretos manuales
-      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      run: echo "${{ secrets.USER_LOWER }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
     - name: 8. Construir la imagen Docker (Nomenclatura de la Rúbrica)
       # Forzamos las minúsculas en el nombre del usuario para evitar errores de Docker
