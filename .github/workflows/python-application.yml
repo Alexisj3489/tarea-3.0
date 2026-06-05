@@ -24,10 +24,10 @@ jobs:
     - name: Install dependencies
       run: pip install -r requirements.txt
     - name: Contruir la imagen
-      run: docker build -t ghcr.io/alexisj3489/proyecto_docker:3.0.0 .
+      run: docker build -t ghcr.io/alexisj3489/proyecto:3.0.0 .
 
     - name: Login hacia Github Container Registry
       run: echo "${{ secrets.TOKEN_AC }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
     
     - name: Push de la imagen a Github Container Registry
-      run: docker push ghcr.io/alexisj3489/proyecto_docker:3.0.0
+      run: docker push ghcr.io/alexisj3489/proyecto:3.0.0
