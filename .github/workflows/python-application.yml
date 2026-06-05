@@ -1,11 +1,11 @@
 # Nombre exacto requerido por la guía de la tarea
-name: ci.yml
+name: python-application.yml
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master" ]
 
 # Permisos necesarios para interactuar con los paquetes de GitHub
 permissions:
