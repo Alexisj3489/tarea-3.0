@@ -1,1 +1,30 @@
 version: "3.9"
+
+services: 
+   alexis:
+   image: ghcr.io/alexisj3489/proyecto:3.0.0
+   networks: 
+    -traefik-public
+   deploy: 
+    replicas: 1
+    update_config: 
+     parallelism: 1
+     delay: 10s
+    restart_policy:
+      condition: on-failure
+labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.alexis.entrypoints=http"
+        - "traefik.http.routers.alexis.rule=Host(alexis.byronrm.com)"
+        - "traefik.http.middlewares.alexis-https-redirect.redirectscheme.scheme=https"
+        - "traefik.http.routers.alexis.middlewares=alexis-https-redirect"
+        - "traefik.http.routers.alexis-secure.entrypoints=https"
+        - "traefik.http.routers.alexis-secure.rule=Host(alexis.byronrm.com)"
+        - "traefik.http.routers.alexis-secure.tls=true"
+        - "traefik.http.routers.alexis-secure.tls.certresolver=http"
+        - "traefik.http.routers.alexis-secure.service=alexis"
+        - "traefik.http.services.alexis.loadbalancer.server.port=5000"
+        - "traefik.docker.network=traefik-public"
+networks:
+traefik-public:
+  external: true
