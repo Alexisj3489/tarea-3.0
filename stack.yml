@@ -68,7 +68,7 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=web"
-        - "traefik.http.routers.portainer.rule=Host(`portainai.byronrm.com`)" # Mapeado
+        - "traefik.http.routers.portainer.rule=Host(`portainai.byronrm.com`)"
         - "traefik.http.routers.portainer.entrypoints=websecure"
         - "traefik.http.routers.portainer.tls.certresolver=le"
         - "traefik.http.services.portainer.loadbalancer.server.port=9000"
@@ -80,7 +80,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: "appuser"
-      POSTGRES_PASSWORD: "12345" # Clave asignada
+      POSTGRES_PASSWORD: "12345"
       POSTGRES_DB: "appdb"
     volumes:
       - "db-data:/var/lib/postgresql/data"
@@ -99,7 +99,7 @@ services:
     image: dpage/pgadmin4:latest
     environment:
       PGADMIN_DEFAULT_EMAIL: "admin@byronrm.com"
-      PGADMIN_DEFAULT_PASSWORD: "12345" # Clave asignada para el login web
+      PGADMIN_DEFAULT_PASSWORD: "12345"
       PGADMIN_CONFIG_SERVER_MODE: "True"
     networks:
       - web
@@ -108,7 +108,7 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=web"
-        - "traefik.http.routers.pgadmin.rule=Host(`pgpacheco.byronrm.com`)" # Mapeado
+        - "traefik.http.routers.pgadmin.rule=Host(`pgpacheco.byronrm.com`)"
         - "traefik.http.routers.pgadmin.entrypoints=websecure"
         - "traefik.http.routers.pgadmin.tls.certresolver=le"
         - "traefik.http.services.pgadmin.loadbalancer.server.port=80"
@@ -122,9 +122,9 @@ services:
       DB_HOST: "db"
       DB_PORT: "5432"
       DB_USER: "appuser"
-      DB_PASSWORD: "12345" # Clave asignada para conectar a la BD
+      DB_PASSWORD: "12345"
       DB_NAME: "appdb"
-      CORS_ORIGINS: "https://coronel.byronrm.com" # ¡CORREGIDO!
+      CORS_ORIGINS: "https://coronel.byronrm.com"
     networks:
       - web
       - backend-net
@@ -133,7 +133,7 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=web"
-        - "traefik.http.routers.backend.rule=Host(`backalexis.byronrm.com`)" # Mapeado
+        - "traefik.http.routers.backend.rule=Host(`backalexis.byronrm.com`)"
         - "traefik.http.routers.backend.entrypoints=websecure"
         - "traefik.http.routers.backend.tls.certresolver=le"
         - "traefik.http.services.backend.loadbalancer.server.port=8000"
@@ -141,12 +141,12 @@ services:
         condition: on-failure
 
   # ---------------------------------------------------------------------
-  # Frontend: Aplicación Web Next.js
+  # Frontend: Aplicación Web Estática (Servida por Nginx)
   # ---------------------------------------------------------------------
   frontend:
     image: ghcr.io/alexisj3489/proyecto-frontend:3.0.0
     environment:
-      NEXT_PUBLIC_API_URL: "https://backalexis.byronrm.com/api"
+      NEXT_PUBLIC_API_URL: "https://backalexis.byronrm.com"
       NODE_ENV: "production"
     networks:
       - web
@@ -155,9 +155,9 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=web"
-        - "traefik.http.routers.frontend.rule=Host(`coronel.byronrm.com`)" # ¡CORREGIDO!
+        - "traefik.http.routers.frontend.rule=Host(`coronel.byronrm.com`)"
         - "traefik.http.routers.frontend.entrypoints=websecure"
         - "traefik.http.routers.frontend.tls.certresolver=le"
-        - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+        - "traefik.http.services.frontend.loadbalancer.server.port=80" # ¡Mapeado a Nginx!
       restart_policy:
         condition: on-failure

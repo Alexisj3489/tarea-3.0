@@ -1,121 +1,113 @@
-"""
-Backend - CRUD de usuarios
-Proyecto Final: Despliegue de una Aplicacion en un VPS
-
-Expone endpoints REST para registrar, listar, actualizar y eliminar
-usuarios. Se conecta a PostgreSQL usando variables de entorno.
-"""
 import os
-
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from passlib.context import CryptContext
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+from typing import List
 
-import models
-import schemas
-from database import Base, SessionLocal, engine, wait_for_db
+import models, schemas
+from database import engine, get_db
 
-app = FastAPI(title="API Usuarios - Proyecto Final VPS", version="3.0.0")
+# Crear tablas automáticamente al iniciar
+models.Base.metadata.create_all(bind=engine)
 
-# Los origenes permitidos se configuran por variable de entorno para no
-# hardcodear el subdominio del frontend dentro de la imagen.
-allowed_origins = os.getenv("CORS_ORIGINS", "*").split(",")
+app = FastAPI(title="API de Alexis - Proyecto Swarm", docs_url="/api/docs", openapi_url="/api/openapi.json")
+
+# Configurar CORS con tu variable de entorno
+cors_origins_env = os.getenv("CORS_ORIGINS", "https://coronel.byronrm.com")
+origins = [origin.strip() for origin in cors_origins_env.split(",")]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+@app.get("/api/health")
+def health_check():
+    return {"status": "ok", "message": "Backend funcionando correctamente"}
+
+# ==========================================
+# CRUD DE USUARIOS (Users)
+# ==========================================
+
+@app.get("/api/users", response_model=List[schemas.UserResponse])
+def get_users(db: Session = Depends(get_db)):
+    return db.query(models.User).order_by(models.User.id.asc()).all()
+
+@app.post("/api/users", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
+def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="El email ya está registrado")
+    new_user = models.User(name=user.name, email=user.email)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+@app.put("/api/users/{user_id}", response_model=schemas.UserResponse)
+def update_user(user_id: int, user_data: schemas.UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    # Comprobar que el email no lo use alguien más
+    email_exists = db.query(models.User).filter(models.User.email == user_data.email, models.User.id != user_id).first()
+    if email_exists:
+        raise HTTPException(status_code=400, detail="El email ya está en uso por otro usuario")
+        
+    db_user.name = user_data.name
+    db_user.email = user_data.email
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+@app.delete("/api/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(user_id: int, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    db.delete(db_user)
+    db.commit()
+    return None
 
 
-@app.on_event("startup")
-def on_startup():
-    wait_for_db()
-    Base.metadata.create_all(bind=engine)
+# ==========================================
+# CRUD DE PRODUCTOS (Products)
+# ==========================================
 
+@app.get("/api/products", response_model=List[schemas.ProductResponse])
+def get_products(db: Session = Depends(get_db)):
+    return db.query(models.Product).order_by(models.Product.id.asc()).all()
 
-@app.get("/api/health", tags=["health"])
-def health():
-    return {"status": "ok", "service": "backend"}
+@app.post("/api/products", response_model=schemas.ProductResponse, status_code=status.HTTP_201_CREATED)
+def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)):
+    new_product = models.Product(name=product.name, price=product.price, stock=product.stock)
+    db.add(new_product)
+    db.commit()
+    db.refresh(new_product)
+    return new_product
 
+@app.put("/api/products/{product_id}", response_model=schemas.ProductResponse)
+def update_product(product_id: int, product_data: schemas.ProductCreate, db: Session = Depends(get_db)):
+    db_product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not db_product:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+        
+    db_product.name = product_data.name
+    db_product.price = product_data.price
+    db_product.stock = product_data.stock
+    db.commit()
+    db.refresh(db_product)
+    return db_product
 
-@app.post("/api/usuarios", response_model=schemas.UsuarioOut, status_code=status.HTTP_201_CREATED, tags=["usuarios"])
-def registrar_usuario(payload: schemas.UsuarioCreate):
-    db = SessionLocal()
-    try:
-        nuevo = models.Usuario(
-            nombre=payload.nombre,
-            email=payload.email,
-            password_hash=pwd_context.hash(payload.password),
-        )
-        db.add(nuevo)
-        db.commit()
-        db.refresh(nuevo)
-        return nuevo
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="Ese correo ya esta registrado")
-    finally:
-        db.close()
-
-
-@app.get("/api/usuarios", response_model=list[schemas.UsuarioOut], tags=["usuarios"])
-def listar_usuarios():
-    db = SessionLocal()
-    try:
-        usuarios = db.scalars(select(models.Usuario).order_by(models.Usuario.id)).all()
-        return usuarios
-    finally:
-        db.close()
-
-
-@app.get("/api/usuarios/{usuario_id}", response_model=schemas.UsuarioOut, tags=["usuarios"])
-def obtener_usuario(usuario_id: int):
-    db = SessionLocal()
-    try:
-        usuario = db.get(models.Usuario, usuario_id)
-        if not usuario:
-            raise HTTPException(status_code=404, detail="Usuario no encontrado")
-        return usuario
-    finally:
-        db.close()
-
-
-@app.put("/api/usuarios/{usuario_id}", response_model=schemas.UsuarioOut, tags=["usuarios"])
-def actualizar_usuario(usuario_id: int, payload: schemas.UsuarioUpdate):
-    db = SessionLocal()
-    try:
-        usuario = db.get(models.Usuario, usuario_id)
-        if not usuario:
-            raise HTTPException(status_code=404, detail="Usuario no encontrado")
-        if payload.nombre is not None:
-            usuario.nombre = payload.nombre
-        if payload.email is not None:
-            usuario.email = payload.email
-        db.commit()
-        db.refresh(usuario)
-        return usuario
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="Ese correo ya esta registrado")
-    finally:
-        db.close()
-
-
-@app.delete("/api/usuarios/{usuario_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["usuarios"])
-def eliminar_usuario(usuario_id: int):
-    db = SessionLocal()
-    try:
-        usuario = db.get(models.Usuario, usuario_id)
-        if not usuario:
-            raise HTTPException(status_code=404, detail="Usuario no encontrado")
-        db.delete(usuario)
-        db.commit()
-    finally:
-        db.close()
+@app.delete("/api/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_product(product_id: int, db: Session = Depends(get_db)):
+    db_product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not db_product:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    db.delete(db_product)
+    db.commit()
+    return None

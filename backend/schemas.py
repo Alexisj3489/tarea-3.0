@@ -1,24 +1,31 @@
-from datetime import datetime
+from pydantic import BaseModel, EmailStr
 
-from pydantic import BaseModel, EmailStr, Field
-
-
-class UsuarioCreate(BaseModel):
-    nombre: str = Field(min_length=2, max_length=100)
+# --- SCHEMAS DE USUARIO ---
+class UserBase(BaseModel):
+    name: str
     email: EmailStr
-    password: str = Field(min_length=6, max_length=100)
 
+class UserCreate(UserBase):
+    pass
 
-class UsuarioUpdate(BaseModel):
-    nombre: str | None = Field(default=None, min_length=2, max_length=100)
-    email: EmailStr | None = None
-
-
-class UsuarioOut(BaseModel):
+class UserResponse(UserBase):
     id: int
-    nombre: str
-    email: EmailStr
-    creado_en: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+
+# --- SCHEMAS DE PRODUCTO ---
+class ProductBase(BaseModel):
+    name: str
+    price: float
+    stock: int
+
+class ProductCreate(ProductBase):
+    pass
+
+class ProductResponse(ProductBase):
+    id: int
 
     class Config:
         from_attributes = True
