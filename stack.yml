@@ -124,7 +124,7 @@ services:
       DB_USER: "appuser"
       DB_PASSWORD: "12345" # Clave asignada para conectar a la BD
       DB_NAME: "appdb"
-      CORS_ORIGINS: "https://bcoronel.byronrm.com"
+      CORS_ORIGINS: "https://coronel.byronrm.com" # ¡CORREGIDO!
     networks:
       - web
       - backend-net
@@ -155,7 +155,7 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=web"
-        - "traefik.http.routers.frontend.rule=Host(`bcoronel.byronrm.com`)" # Mapeado
+        - "traefik.http.routers.frontend.rule=Host(`coronel.byronrm.com`)" # ¡CORREGIDO!
         - "traefik.http.routers.frontend.entrypoints=websecure"
         - "traefik.http.routers.frontend.tls.certresolver=le"
         - "traefik.http.services.frontend.loadbalancer.server.port=3000"
