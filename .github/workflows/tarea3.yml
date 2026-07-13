@@ -12,8 +12,9 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/proyecto-backend
-  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/proyecto-frontend
+  # Aquí escribimos alexisj3489 TODO en minúsculas en lugar de usar github.repository_owner
+  BACKEND_IMAGE: ghcr.io/alexisj3489/proyecto-backend
+  FRONTEND_IMAGE: ghcr.io/alexisj3489/proyecto-frontend
   IMAGE_TAG: 3.0.0
 
 jobs:
