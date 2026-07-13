@@ -37,7 +37,8 @@ jobs:
           python -c "import fastapi, sqlalchemy, psycopg2; print('OK: dependencias del backend importan correctamente')"
 
       - name: Login hacia GitHub Container Registry
-        run: echo "${{ secrets.TOKEN_AC }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        # Usamos GITHUB_TOKEN que se genera automáticamente y tiene permisos gracias al bloque 'permissions' de arriba
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Construir y publicar imagen del backend
         run: |
@@ -91,14 +92,19 @@ jobs:
 
       - name: Desplegar servicios en Docker Swarm
         uses: appleboy/ssh-action@v1
+        # Pasamos el GITHUB_TOKEN como variable de entorno al script SSH para que el VPS pueda iniciar sesión y descargar las imágenes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_SSH_PORT }}
+          envs: GITHUB_TOKEN
           script: |
             set -e
-            echo "${{ secrets.TOKEN_AC }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            # El VPS usa el token temporal de esta ejecución para loguearse
+            echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             cd ~/landigb
             docker info --format '{{.Swarm.LocalNodeState}}' | grep -q active || docker swarm init
             docker pull ${{ needs.build-and-push.outputs.backend_image }}:${{ needs.build-and-push.outputs.image_tag }}
