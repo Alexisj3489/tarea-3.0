@@ -104,15 +104,22 @@ jobs:
             # 1. Entramos a la ruta absoluta correcta del usuario root
             cd /root/landigb
             
-            # 2. Autenticación con el Container Registry usando el token temporal
+            # 2. Autenticación con el Container Registry
             echo "$GITHUB_TOKEN" | docker login ghcr.io -u alexisj3489 --password-stdin
             
-            # 3. Verificación de Docker Swarm e importación de imágenes actualizadas
-            docker info --format '{{.Swarm.LocalNodeState}}' | grep -q active || docker swarm init
+            # 3. Verificación ESTRICTA de Docker Swarm (Evita el falso positivo de 'inactive')
+            if [ "$(docker info --format '{{.Swarm.LocalNodeState}}')" != "active" ]; then
+              echo "Swarm no está activo. Inicializando..."
+              docker swarm init
+            else
+              echo "Swarm ya se encuentra activo como Manager."
+            fi
+            
+            # 4. Descargar las imágenes actualizadas
             docker pull ${{ needs.build-and-push.outputs.backend_image }}:${{ needs.build-and-push.outputs.image_tag }}
             docker pull ${{ needs.build-and-push.outputs.frontend_image }}:${{ needs.build-and-push.outputs.image_tag }}
             
-            # 4. Lectura segura del entorno y ejecución de Docker Swarm
+            # 5. Lectura segura del entorno y ejecución de Docker Swarm
             set -a; . ./.env; set +a
             docker stack deploy -c stack.yml appstack --with-registry-auth
             rm -f .env
