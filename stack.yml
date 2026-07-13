@@ -6,31 +6,30 @@ networks:
     attachable: true
   backend-net:
     driver: overlay
-    internal: true   # sin salida a internet: solo backend/adminer <-> db
+    internal: true
 
 volumes:
   traefik-letsencrypt:
   portainer-data:
-  db-data:
 
 services:
 
   # ---------------------------------------------------------------------
-  # Traefik: proxy inverso + TLS automatico (Let's Encrypt)
+  # Traefik: Proxy Inverso + SSL Certificados automáticos
   # ---------------------------------------------------------------------
   traefik:
     image: traefik:v3.1
     command:
-      - "--providers.swarm=true"                       # <-- CORREGIDO: Traefik v3 Swarm Provider
-      - "--providers.swarm.exposedByDefault=false"     # <-- CORREGIDO: Traefik v3 Swarm Provider
-      - "--providers.swarm.network=web"                # <-- CORREGIDO: Traefik v3 Swarm Provider
+      - "--providers.swarm=true"
+      - "--providers.swarm.exposedByDefault=false"
+      - "--providers.swarm.network=web"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--certificatesresolvers.le.acme.httpchallenge=true"
       - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
-      - "--certificatesresolvers.le.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.le.acme.email=dustin.paredes@example.com"
       - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
       - "--log.level=INFO"
     ports:
@@ -52,7 +51,7 @@ services:
         condition: on-failure
 
   # ---------------------------------------------------------------------
-  # Portainer: administracion grafica de Docker
+  # Portainer CE: Panel de control visual
   # ---------------------------------------------------------------------
   portainer:
     image: portainer/portainer-ce:2.21.4
@@ -67,60 +66,28 @@ services:
         constraints: [ "node.role == manager" ]
       labels:
         - "traefik.enable=true"
-        - "traefik.swarm.network=web"                  # <-- CORREGIDO para Swarm Provider
-        - "traefik.http.routers.portainer.rule=Host(`portainal.byronrm.com`)"
+        - "traefik.swarm.network=web"
+        - "traefik.http.routers.portainer.rule=Host(`portainerdustin.byronrm.com`)"
         - "traefik.http.routers.portainer.entrypoints=websecure"
         - "traefik.http.routers.portainer.tls.certresolver=le"
         - "traefik.http.services.portainer.loadbalancer.server.port=9000"
 
   # ---------------------------------------------------------------------
-  # Base de datos: PostgreSQL (sin exponer al exterior)
-  # ---------------------------------------------------------------------
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: "${POSTGRES_USER}"
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
-      POSTGRES_DB: "${POSTGRES_DB}"
-    volumes:
-      - "db-data:/var/lib/postgresql/data"
-    networks:
-      - backend-net
-    deploy:
-      placement:
-        constraints: [ "node.role == manager" ]
-      restart_policy:
-        condition: on-failure
-
-  # ---------------------------------------------------------------------
-  # Adminer: administrador grafico de la base de datos
-  # ---------------------------------------------------------------------
-  adminer:
-    image: adminer:4.8.1
-    networks:
-      - web
-      - backend-net
-    deploy:
-      labels:
-        - "traefik.enable=true"
-        - "traefik.swarm.network=web"                  # <-- CORREGIDO para Swarm Provider
-        - "traefik.http.routers.adminer.rule=Host(`popacheco.byronrm.com`)"
-        - "traefik.http.routers.adminer.entrypoints=websecure"
-        - "traefik.http.routers.adminer.tls.certresolver=le"
-        - "traefik.http.services.adminer.loadbalancer.server.port=8080"
-
-  # ---------------------------------------------------------------------
-  # Backend: API en Python (FastAPI) con el CRUD de usuarios
+  # Backend: API (Conexión directa a BD externa en la Web)
   # ---------------------------------------------------------------------
   backend:
-    image: "${BACKEND_IMAGE}:${IMAGE_TAG}"
+    image: ghcr.io/alexisj3489/proyecto-backend:3.0.0
     environment:
-      DB_HOST: "db"
+      # REEMPLAZA ESTOS VALORES CON LOS DE TU BASE DE DATOS EN LA WEB:
+      DB_CONNECTION: "pgsql"
+      DB_HOST: "URL_DE_TU_BASE_DE_DATOS_EXTERNA.com" 
       DB_PORT: "5432"
-      DB_USER: "${POSTGRES_USER}"
-      DB_PASSWORD: "${POSTGRES_PASSWORD}"
-      DB_NAME: "${POSTGRES_DB}"
-      CORS_ORIGINS: "https://coronel.byronrm.com"
+      DB_DATABASE: "NOMBRE_DE_TU_BD_EN_LA_WEB"
+      DB_USERNAME: "USUARIO_DE_TU_BD_EN_LA_WEB"
+      DB_PASSWORD: "CONTRASEÑA_DE_TU_BD_EN_LA_WEB"
+      
+      APP_URL: "https://backdustin.byronrm.com"
+      FRONTEND_URL: "https://dustin.byronrm.com"
     networks:
       - web
       - backend-net
@@ -128,8 +95,8 @@ services:
       replicas: 1
       labels:
         - "traefik.enable=true"
-        - "traefik.swarm.network=web"                  # <-- CORREGIDO para Swarm Provider
-        - "traefik.http.routers.backend.rule=Host(`backalexis.byronrm.com`)"
+        - "traefik.swarm.network=web"
+        - "traefik.http.routers.backend.rule=Host(`backdustin.byronrm.com`)"
         - "traefik.http.routers.backend.entrypoints=websecure"
         - "traefik.http.routers.backend.tls.certresolver=le"
         - "traefik.http.services.backend.loadbalancer.server.port=8000"
@@ -137,22 +104,23 @@ services:
         condition: on-failure
 
   # ---------------------------------------------------------------------
-  # Frontend: panel web estatico (nginx) que consume la API del backend
+  # Frontend: Aplicación Web Next.js
   # ---------------------------------------------------------------------
   frontend:
-    image: "${FRONTEND_IMAGE}:${IMAGE_TAG}"
+    image: ghcr.io/alexisj3489/proyecto-frontend:3.0.0
     environment:
-      API_BASE_URL: "https://backalexis.byronrm.com"
+      NEXT_PUBLIC_API_URL: "https://backdustin.byronrm.com/api"
+      NODE_ENV: "production"
     networks:
       - web
     deploy:
       replicas: 1
       labels:
         - "traefik.enable=true"
-        - "traefik.swarm.network=web"                  # <-- CORREGIDO para Swarm Provider
-        - "traefik.http.routers.frontend.rule=Host(`coronel.byronrm.com`)"
+        - "traefik.swarm.network=web"
+        - "traefik.http.routers.frontend.rule=Host(`dustin.byronrm.com`)"
         - "traefik.http.routers.frontend.entrypoints=websecure"
         - "traefik.http.routers.frontend.tls.certresolver=le"
-        - "traefik.http.services.frontend.loadbalancer.server.port=80"
+        - "traefik.http.services.frontend.loadbalancer.server.port=3000"
       restart_policy:
         condition: on-failure
