@@ -6,12 +6,12 @@ networks:
     attachable: true
   backend-net:
     driver: overlay
-    internal: true # Red interna y segura donde se esconde la base de datos
+    internal: true
 
 volumes:
   traefik-letsencrypt:
   portainer-data:
-  db-data: # Volumen físico para que los datos de tu BD no se borren si se reinicia el contenedor
+  db-data:
 
 services:
 
@@ -30,7 +30,7 @@ services:
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--certificatesresolvers.le.acme.httpchallenge=true"
       - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
-      - "--certificatesresolvers.le.acme.email=alexis.coronel@example.com"
+      - "--certificatesresolvers.le.acme.email=alexis.coronel@byronrm.com"
       - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
       - "--log.level=INFO"
     ports:
@@ -68,24 +68,24 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=web"
-        - "traefik.http.routers.portainer.rule=Host(`portainai.byronrm.com`)"
+        - "traefik.http.routers.portainer.rule=Host(`portainai.byronrm.com`)" # Mapeado
         - "traefik.http.routers.portainer.entrypoints=websecure"
         - "traefik.http.routers.portainer.tls.certresolver=le"
         - "traefik.http.services.portainer.loadbalancer.server.port=9000"
 
   # ---------------------------------------------------------------------
-  # PostgreSQL: Base de datos privada del sistema de inventario
+  # PostgreSQL: Base de datos interna
   # ---------------------------------------------------------------------
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: "appuser"       # Coincide con el valor por defecto de tu backend
-      POSTGRES_PASSWORD: "TuClaveSeguraAqui123" # REEMPLAZA CON UNA CLAVE SEGURA
-      POSTGRES_DB: "appdb"           # Coincide con el valor por defecto de tu backend
+      POSTGRES_USER: "appuser"
+      POSTGRES_PASSWORD: "12345" # Clave asignada
+      POSTGRES_DB: "appdb"
     volumes:
       - "db-data:/var/lib/postgresql/data"
     networks:
-      - backend-net # Totalmente oculta del exterior por seguridad
+      - backend-net
     deploy:
       placement:
         constraints: [ "node.role == manager" ]
@@ -93,36 +93,36 @@ services:
         condition: on-failure
 
   # ---------------------------------------------------------------------
-  # pgAdmin: Administrador gráfico para tu Base de Datos en la Web
+  # pgAdmin: Administrador gráfico web para la base de datos
   # ---------------------------------------------------------------------
   pgadmin:
     image: dpage/pgadmin4:latest
     environment:
-      PGADMIN_DEFAULT_EMAIL: "admin@byronrm.com" # Tu correo para iniciar sesión en pgAdmin web
-      PGADMIN_DEFAULT_PASSWORD: "TuClavePgadminAqui123" # Tu clave para iniciar sesión en pgAdmin web
+      PGADMIN_DEFAULT_EMAIL: "admin@byronrm.com"
+      PGADMIN_DEFAULT_PASSWORD: "12345" # Clave asignada para el login web
       PGADMIN_CONFIG_SERVER_MODE: "True"
     networks:
-      - web         # Para que entres por internet
-      - backend-net # Para que se conecte por dentro a la base de datos
+      - web
+      - backend-net
     deploy:
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=web"
-        - "traefik.http.routers.pgadmin.rule=Host(`pgpacheco.byronrm.com`)"
+        - "traefik.http.routers.pgadmin.rule=Host(`pgpacheco.byronrm.com`)" # Mapeado
         - "traefik.http.routers.pgadmin.entrypoints=websecure"
         - "traefik.http.routers.pgadmin.tls.certresolver=le"
         - "traefik.http.services.pgadmin.loadbalancer.server.port=80"
 
   # ---------------------------------------------------------------------
-  # Backend: API Python FastAPI (Conexión interna con la BD)
+  # Backend: API Python FastAPI
   # ---------------------------------------------------------------------
   backend:
     image: ghcr.io/alexisj3489/proyecto-backend:3.0.0
     environment:
-      DB_HOST: "db" # Apunta al nombre del servicio de arriba
+      DB_HOST: "db"
       DB_PORT: "5432"
       DB_USER: "appuser"
-      DB_PASSWORD: "TuClaveSeguraAqui123" # Debe ser exactamente la misma de arriba
+      DB_PASSWORD: "12345" # Clave asignada para conectar a la BD
       DB_NAME: "appdb"
       CORS_ORIGINS: "https://bcoronel.byronrm.com"
     networks:
@@ -133,7 +133,7 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=web"
-        - "traefik.http.routers.backend.rule=Host(`backalexis.byronrm.com`)"
+        - "traefik.http.routers.backend.rule=Host(`backalexis.byronrm.com`)" # Mapeado
         - "traefik.http.routers.backend.entrypoints=websecure"
         - "traefik.http.routers.backend.tls.certresolver=le"
         - "traefik.http.services.backend.loadbalancer.server.port=8000"
@@ -141,7 +141,7 @@ services:
         condition: on-failure
 
   # ---------------------------------------------------------------------
-  # Frontend: Aplicación Web Next.js (Alexis Coronel)
+  # Frontend: Aplicación Web Next.js
   # ---------------------------------------------------------------------
   frontend:
     image: ghcr.io/alexisj3489/proyecto-frontend:3.0.0
@@ -155,7 +155,7 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=web"
-        - "traefik.http.routers.frontend.rule=Host(`bcoronel.byronrm.com`)"
+        - "traefik.http.routers.frontend.rule=Host(`bcoronel.byronrm.com`)" # Mapeado
         - "traefik.http.routers.frontend.entrypoints=websecure"
         - "traefik.http.routers.frontend.tls.certresolver=le"
         - "traefik.http.services.frontend.loadbalancer.server.port=3000"
