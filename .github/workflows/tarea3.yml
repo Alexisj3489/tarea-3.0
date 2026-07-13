@@ -12,7 +12,6 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  # Aquí escribimos alexisj3489 TODO en minúsculas en lugar de usar github.repository_owner
   BACKEND_IMAGE: ghcr.io/alexisj3489/proyecto-backend
   FRONTEND_IMAGE: ghcr.io/alexisj3489/proyecto-frontend
   IMAGE_TAG: 3.0.0
@@ -38,8 +37,7 @@ jobs:
           python -c "import fastapi, sqlalchemy, psycopg2; print('OK: dependencias del backend importan correctamente')"
 
       - name: Login hacia GitHub Container Registry
-        # Usamos GITHUB_TOKEN que se genera automáticamente y tiene permisos gracias al bloque 'permissions' de arriba
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u alexisj3489 --password-stdin
 
       - name: Construir y publicar imagen del backend
         run: |
@@ -79,7 +77,7 @@ jobs:
           port: ${{ secrets.VPS_SSH_PORT }}
           script: |
             echo "conexion ssh exitosa"
-            mkdir -p ~/landigb
+            mkdir -p /root/landigb
 
       - name: Copiar stack.yml, Makefile y .env al VPS
         uses: appleboy/scp-action@v1
@@ -89,11 +87,10 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_SSH_PORT }}
           source: "stack.yml,Makefile,.env"
-          target: "/home/${{ secrets.VPS_USER }}/landigb"
+          target: "/root/landigb"
 
       - name: Desplegar servicios en Docker Swarm
         uses: appleboy/ssh-action@v1
-        # Pasamos el GITHUB_TOKEN como variable de entorno al script SSH para que el VPS pueda iniciar sesión y descargar las imágenes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -104,12 +101,18 @@ jobs:
           envs: GITHUB_TOKEN
           script: |
             set -e
-            # El VPS usa el token temporal de esta ejecución para loguearse
-            echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            cd ~/landigb
+            # 1. Entramos a la ruta absoluta correcta del usuario root
+            cd /root/landigb
+            
+            # 2. Autenticación con el Container Registry usando el token temporal
+            echo "$GITHUB_TOKEN" | docker login ghcr.io -u alexisj3489 --password-stdin
+            
+            # 3. Verificación de Docker Swarm e importación de imágenes actualizadas
             docker info --format '{{.Swarm.LocalNodeState}}' | grep -q active || docker swarm init
             docker pull ${{ needs.build-and-push.outputs.backend_image }}:${{ needs.build-and-push.outputs.image_tag }}
             docker pull ${{ needs.build-and-push.outputs.frontend_image }}:${{ needs.build-and-push.outputs.image_tag }}
+            
+            # 4. Lectura segura del entorno y ejecución de Docker Swarm
             set -a; . ./.env; set +a
             docker stack deploy -c stack.yml appstack --with-registry-auth
             rm -f .env
