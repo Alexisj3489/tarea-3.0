@@ -29,7 +29,7 @@ services:
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--certificatesresolvers.le.acme.httpchallenge=true"
       - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
-      - "--certificatesresolvers.le.acme.email=dustin.paredes@example.com"
+      - "--certificatesresolvers.le.acme.email=alexis.coronel@example.com" # Cambia por tu correo real si deseas alertas de SSL
       - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
       - "--log.level=INFO"
     ports:
@@ -67,27 +67,46 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=web"
-        - "traefik.http.routers.portainer.rule=Host(`portainerdustin.byronrm.com`)"
+        - "traefik.http.routers.portainer.rule=Host(`portainai.byronrm.com`)" # Tu subdominio portainer
         - "traefik.http.routers.portainer.entrypoints=websecure"
         - "traefik.http.routers.portainer.tls.certresolver=le"
         - "traefik.http.services.portainer.loadbalancer.server.port=9000"
 
   # ---------------------------------------------------------------------
-  # Backend: API (Conexión directa a BD externa en la Web)
+  # pgAdmin: Administrador gráfico para tu Base de Datos en la Web
+  # ---------------------------------------------------------------------
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "admin@byronrm.com"
+      PGADMIN_DEFAULT_PASSWORD: "CAMBIAR_POR_UNA_CLAVE_SEGURA"
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+    networks:
+      - web
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.swarm.network=web"
+        - "traefik.http.routers.pgadmin.rule=Host(`pgpacheco.byronrm.com`)" # Tu subdominio pgadmin
+        - "traefik.http.routers.pgadmin.entrypoints=websecure"
+        - "traefik.http.routers.pgadmin.tls.certresolver=le"
+        - "traefik.http.services.pgadmin.loadbalancer.server.port=80"
+
+  # ---------------------------------------------------------------------
+  # Backend: API Python FastAPI (Conexión Directa a la Web)
   # ---------------------------------------------------------------------
   backend:
     image: ghcr.io/alexisj3489/proyecto-backend:3.0.0
     environment:
-      # REEMPLAZA ESTOS VALORES CON LOS DE TU BASE DE DATOS EN LA WEB:
-      DB_CONNECTION: "pgsql"
-      DB_HOST: "URL_DE_TU_BASE_DE_DATOS_EXTERNA.com" 
+      # VARIABLES DE TU PROVEEDOR DE BD WEB (RELLENAR):
+      DB_HOST: "URL_DE_TU_BASE_DE_DATOS_EXTERNA.com"
       DB_PORT: "5432"
-      DB_DATABASE: "NOMBRE_DE_TU_BD_EN_LA_WEB"
-      DB_USERNAME: "USUARIO_DE_TU_BD_EN_LA_WEB"
+      DB_USER: "USUARIO_DE_TU_BD_EN_LA_WEB"
       DB_PASSWORD: "CONTRASEÑA_DE_TU_BD_EN_LA_WEB"
+      DB_NAME: "NOMBRE_DE_TU_BD_EN_LA_WEB"
       
-      APP_URL: "https://backdustin.byronrm.com"
-      FRONTEND_URL: "https://dustin.byronrm.com"
+      # CORS: Permite que el Front de Alexis acceda a los recursos de la API
+      CORS_ORIGINS: "https://bcoronel.byronrm.com"
     networks:
       - web
       - backend-net
@@ -96,7 +115,7 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=web"
-        - "traefik.http.routers.backend.rule=Host(`backdustin.byronrm.com`)"
+        - "traefik.http.routers.backend.rule=Host(`backalexis.byronrm.com`)" # Tu subdominio backend
         - "traefik.http.routers.backend.entrypoints=websecure"
         - "traefik.http.routers.backend.tls.certresolver=le"
         - "traefik.http.services.backend.loadbalancer.server.port=8000"
@@ -104,12 +123,12 @@ services:
         condition: on-failure
 
   # ---------------------------------------------------------------------
-  # Frontend: Aplicación Web Next.js
+  # Frontend: Aplicación Web Next.js (Alexis Coronel)
   # ---------------------------------------------------------------------
   frontend:
     image: ghcr.io/alexisj3489/proyecto-frontend:3.0.0
     environment:
-      NEXT_PUBLIC_API_URL: "https://backdustin.byronrm.com/api"
+      NEXT_PUBLIC_API_URL: "https://backalexis.byronrm.com/api"
       NODE_ENV: "production"
     networks:
       - web
@@ -118,7 +137,7 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=web"
-        - "traefik.http.routers.frontend.rule=Host(`dustin.byronrm.com`)"
+        - "traefik.http.routers.frontend.rule=Host(`bcoronel.byronrm.com`)" # Tu subdominio frontend
         - "traefik.http.routers.frontend.entrypoints=websecure"
         - "traefik.http.routers.frontend.tls.certresolver=le"
         - "traefik.http.services.frontend.loadbalancer.server.port=3000"
