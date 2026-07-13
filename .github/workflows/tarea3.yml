@@ -1,0 +1,108 @@
+name: tarea3.0
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/proyecto-backend
+  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/proyecto-frontend
+  IMAGE_TAG: 3.0.0
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      backend_image: ${{ env.BACKEND_IMAGE }}
+      frontend_image: ${{ env.FRONTEND_IMAGE }}
+      image_tag: ${{ env.IMAGE_TAG }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verificar que el backend instala sus dependencias
+        run: |
+          pip install -r backend/requirements.txt
+          python -c "import fastapi, sqlalchemy, psycopg2; print('OK: dependencias del backend importan correctamente')"
+
+      - name: Login hacia GitHub Container Registry
+        run: echo "${{ secrets.TOKEN_AC }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Construir y publicar imagen del backend
+        run: |
+          docker build -t ${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }} ./backend
+          docker push ${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}
+
+      - name: Construir y publicar imagen del frontend
+        run: |
+          docker build -t ${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }} ./frontend
+          docker push ${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generar .env con los secrets (no se imprime en el log)
+        run: |
+          cat > .env <<EOF
+          ACME_EMAIL=${{ secrets.ACME_EMAIL }}
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+          BACKEND_IMAGE=${{ needs.build-and-push.outputs.backend_image }}
+          FRONTEND_IMAGE=${{ needs.build-and-push.outputs.frontend_image }}
+          IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
+          EOF
+
+      - name: Probar conexion SSH al VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          script: |
+            echo "conexion ssh exitosa"
+            mkdir -p ~/landigb
+
+      - name: Copiar stack.yml, Makefile y .env al VPS
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          source: "stack.yml,Makefile,.env"
+          target: "/home/${{ secrets.VPS_USER }}/landigb"
+
+      - name: Desplegar servicios en Docker Swarm
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          script: |
+            set -e
+            echo "${{ secrets.TOKEN_AC }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            cd ~/landigb
+            docker info --format '{{.Swarm.LocalNodeState}}' | grep -q active || docker swarm init
+            docker pull ${{ needs.build-and-push.outputs.backend_image }}:${{ needs.build-and-push.outputs.image_tag }}
+            docker pull ${{ needs.build-and-push.outputs.frontend_image }}:${{ needs.build-and-push.outputs.image_tag }}
+            set -a; . ./.env; set +a
+            docker stack deploy -c stack.yml appstack --with-registry-auth
+            rm -f .env

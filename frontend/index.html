@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>usuarios · panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="grid-bg" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">u/</span>
+    <span class="brand-name">usuarios<span class="brand-dim">.panel</span></span>
+  </div>
+  <div class="status" id="status-pill">
+    <span class="status-dot" id="status-dot"></span>
+    <span id="status-text">conectando…</span>
+  </div>
+</header>
+
+<main class="layout">
+
+  <section class="card form-card">
+    <div class="card-eyebrow">01 · registro</div>
+    <h1>Crear una cuenta</h1>
+    <p class="card-sub">Los datos se guardan en PostgreSQL a través del backend en <code id="api-host">backend</code>.</p>
+
+    <form id="registro-form" novalidate>
+      <label class="field">
+        <span>Nombre</span>
+        <input type="text" name="nombre" id="nombre" placeholder="Alexis Coronel" required minlength="2" />
+      </label>
+
+      <label class="field">
+        <span>Correo</span>
+        <input type="email" name="email" id="email" placeholder="alexis@byronrm.com" required />
+      </label>
+
+      <label class="field">
+        <span>Contraseña</span>
+        <input type="password" name="password" id="password" placeholder="mínimo 6 caracteres" required minlength="6" />
+      </label>
+
+      <button type="submit" class="btn-primary" id="submit-btn">Registrar usuario</button>
+      <p class="form-msg" id="form-msg" role="status"></p>
+    </form>
+  </section>
+
+  <section class="card list-card">
+    <div class="card-eyebrow">02 · persistencia</div>
+    <div class="list-head">
+      <h2>Usuarios registrados</h2>
+      <button class="btn-ghost" id="refresh-btn" title="Actualizar lista">↻ actualizar</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>Correo</th>
+            <th>Creado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="usuarios-body">
+          <tr><td colspan="5" class="empty">Cargando usuarios…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <span>Proyecto Final · Traefik + Docker Swarm + Portainer</span>
+</footer>
+
+<script src="config.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

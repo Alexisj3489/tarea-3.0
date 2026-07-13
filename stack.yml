@@ -1,0 +1,176 @@
+# =============================================================================
+# stack.yml — Proyecto Final: Despliegue de una Aplicacion en un VPS
+#
+# Se despliega con Docker Swarm:
+#   docker stack deploy -c stack.yml appstack
+#
+# Asignacion de subdominios usada en este proyecto (VPS 164.68.127.68):
+#   coronel.byronrm.com    -> frontend  (la app)
+#   backalexis.byronrm.com -> backend   (API)
+#   portainal.byronrm.com  -> portainer
+#   popacheco.byronrm.com  -> adminer   (administrador grafico de la BD)
+#
+# Variables de entorno esperadas (ver .env.example):
+#   ACME_EMAIL, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB,
+#   BACKEND_IMAGE, FRONTEND_IMAGE, IMAGE_TAG
+# =============================================================================
+
+version: "3.9"
+
+networks:
+  web:
+    driver: overlay
+    attachable: true
+  backend-net:
+    driver: overlay
+    internal: true   # sin salida a internet: solo backend/adminer <-> db
+
+volumes:
+  traefik-letsencrypt:
+  portainer-data:
+  db-data:
+
+services:
+
+  # ---------------------------------------------------------------------
+  # Traefik: proxy inverso + TLS automatico (Let's Encrypt)
+  # ---------------------------------------------------------------------
+  traefik:
+    image: traefik:v3.1
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.swarmMode=true"
+      - "--providers.docker.exposedByDefault=false"
+      - "--providers.docker.network=web"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--certificatesresolvers.le.acme.httpchallenge=true"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.le.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      - "--log.level=INFO"
+    ports:
+      - target: 80
+        published: 80
+        mode: host
+      - target: 443
+        published: 443
+        mode: host
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "traefik-letsencrypt:/letsencrypt"
+    networks:
+      - web
+    deploy:
+      placement:
+        constraints: [ "node.role == manager" ]
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------
+  # Portainer: administracion grafica de Docker
+  # ---------------------------------------------------------------------
+  portainer:
+    image: portainer/portainer-ce:2.21.4
+    command: "-H unix:///var/run/docker.sock"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "portainer-data:/data"
+    networks:
+      - web
+    deploy:
+      placement:
+        constraints: [ "node.role == manager" ]
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=web"
+        - "traefik.http.routers.portainer.rule=Host(`portainal.byronrm.com`)"
+        - "traefik.http.routers.portainer.entrypoints=websecure"
+        - "traefik.http.routers.portainer.tls.certresolver=le"
+        - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+
+  # ---------------------------------------------------------------------
+  # Base de datos: PostgreSQL (sin exponer al exterior)
+  # ---------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB}"
+    volumes:
+      - "db-data:/var/lib/postgresql/data"
+    networks:
+      - backend-net
+    deploy:
+      placement:
+        constraints: [ "node.role == manager" ]
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------
+  # Adminer: administrador grafico de la base de datos
+  # ---------------------------------------------------------------------
+  adminer:
+    image: adminer:4.8.1
+    networks:
+      - web
+      - backend-net
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=web"
+        - "traefik.http.routers.adminer.rule=Host(`popacheco.byronrm.com`)"
+        - "traefik.http.routers.adminer.entrypoints=websecure"
+        - "traefik.http.routers.adminer.tls.certresolver=le"
+        - "traefik.http.services.adminer.loadbalancer.server.port=8080"
+
+  # ---------------------------------------------------------------------
+  # Backend: API en Python (FastAPI) con el CRUD de usuarios
+  # ---------------------------------------------------------------------
+  backend:
+    image: "${BACKEND_IMAGE}:${IMAGE_TAG}"
+    environment:
+      DB_HOST: "db"
+      DB_PORT: "5432"
+      DB_USER: "${POSTGRES_USER}"
+      DB_PASSWORD: "${POSTGRES_PASSWORD}"
+      DB_NAME: "${POSTGRES_DB}"
+      CORS_ORIGINS: "https://coronel.byronrm.com"
+    networks:
+      - web
+      - backend-net
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=web"
+        - "traefik.http.routers.backend.rule=Host(`backalexis.byronrm.com`)"
+        - "traefik.http.routers.backend.entrypoints=websecure"
+        - "traefik.http.routers.backend.tls.certresolver=le"
+        - "traefik.http.services.backend.loadbalancer.server.port=8000"
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------
+  # Frontend: panel web estatico (nginx) que consume la API del backend
+  # ---------------------------------------------------------------------
+  frontend:
+    image: "${FRONTEND_IMAGE}:${IMAGE_TAG}"
+    environment:
+      API_BASE_URL: "https://backalexis.byronrm.com"
+    networks:
+      - web
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=web"
+        - "traefik.http.routers.frontend.rule=Host(`coronel.byronrm.com`)"
+        - "traefik.http.routers.frontend.entrypoints=websecure"
+        - "traefik.http.routers.frontend.tls.certresolver=le"
+        - "traefik.http.services.frontend.loadbalancer.server.port=80"
+      restart_policy:
+        condition: on-failure
