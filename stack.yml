@@ -1,20 +1,3 @@
-# =============================================================================
-# stack.yml — Proyecto Final: Despliegue de una Aplicacion en un VPS
-#
-# Se despliega con Docker Swarm:
-#   docker stack deploy -c stack.yml appstack
-#
-# Asignacion de subdominios usada en este proyecto (VPS 164.68.127.68):
-#   coronel.byronrm.com    -> frontend  (la app)
-#   backalexis.byronrm.com -> backend   (API)
-#   portainal.byronrm.com  -> portainer
-#   popacheco.byronrm.com  -> adminer   (administrador grafico de la BD)
-#
-# Variables de entorno esperadas (ver .env.example):
-#   ACME_EMAIL, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB,
-#   BACKEND_IMAGE, FRONTEND_IMAGE, IMAGE_TAG
-# =============================================================================
-
 version: "3.9"
 
 networks:
@@ -38,10 +21,9 @@ services:
   traefik:
     image: traefik:v3.1
     command:
-      - "--providers.docker=true"
-      - "--providers.docker.swarmMode=true"
-      - "--providers.docker.exposedByDefault=false"
-      - "--providers.docker.network=web"
+      - "--providers.swarm=true"                       # <-- CORREGIDO: Traefik v3 Swarm Provider
+      - "--providers.swarm.exposedByDefault=false"     # <-- CORREGIDO: Traefik v3 Swarm Provider
+      - "--providers.swarm.network=web"                # <-- CORREGIDO: Traefik v3 Swarm Provider
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
@@ -85,7 +67,7 @@ services:
         constraints: [ "node.role == manager" ]
       labels:
         - "traefik.enable=true"
-        - "traefik.docker.network=web"
+        - "traefik.swarm.network=web"                  # <-- CORREGIDO para Swarm Provider
         - "traefik.http.routers.portainer.rule=Host(`portainal.byronrm.com`)"
         - "traefik.http.routers.portainer.entrypoints=websecure"
         - "traefik.http.routers.portainer.tls.certresolver=le"
@@ -121,7 +103,7 @@ services:
     deploy:
       labels:
         - "traefik.enable=true"
-        - "traefik.docker.network=web"
+        - "traefik.swarm.network=web"                  # <-- CORREGIDO para Swarm Provider
         - "traefik.http.routers.adminer.rule=Host(`popacheco.byronrm.com`)"
         - "traefik.http.routers.adminer.entrypoints=websecure"
         - "traefik.http.routers.adminer.tls.certresolver=le"
@@ -146,7 +128,7 @@ services:
       replicas: 1
       labels:
         - "traefik.enable=true"
-        - "traefik.docker.network=web"
+        - "traefik.swarm.network=web"                  # <-- CORREGIDO para Swarm Provider
         - "traefik.http.routers.backend.rule=Host(`backalexis.byronrm.com`)"
         - "traefik.http.routers.backend.entrypoints=websecure"
         - "traefik.http.routers.backend.tls.certresolver=le"
@@ -167,7 +149,7 @@ services:
       replicas: 1
       labels:
         - "traefik.enable=true"
-        - "traefik.docker.network=web"
+        - "traefik.swarm.network=web"                  # <-- CORREGIDO para Swarm Provider
         - "traefik.http.routers.frontend.rule=Host(`coronel.byronrm.com`)"
         - "traefik.http.routers.frontend.entrypoints=websecure"
         - "traefik.http.routers.frontend.tls.certresolver=le"
