@@ -6,11 +6,12 @@ networks:
     attachable: true
   backend-net:
     driver: overlay
-    internal: true
+    internal: true # Red interna y segura donde se esconde la base de datos
 
 volumes:
   traefik-letsencrypt:
   portainer-data:
+  db-data: # Volumen físico para que los datos de tu BD no se borren si se reinicia el contenedor
 
 services:
 
@@ -29,7 +30,7 @@ services:
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--certificatesresolvers.le.acme.httpchallenge=true"
       - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
-      - "--certificatesresolvers.le.acme.email=alexis.coronel@example.com" # Cambia por tu correo real si deseas alertas de SSL
+      - "--certificatesresolvers.le.acme.email=alexis.coronel@example.com"
       - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
       - "--log.level=INFO"
     ports:
@@ -67,10 +68,29 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=web"
-        - "traefik.http.routers.portainer.rule=Host(`portainai.byronrm.com`)" # Tu subdominio portainer
+        - "traefik.http.routers.portainer.rule=Host(`portainai.byronrm.com`)"
         - "traefik.http.routers.portainer.entrypoints=websecure"
         - "traefik.http.routers.portainer.tls.certresolver=le"
         - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+
+  # ---------------------------------------------------------------------
+  # PostgreSQL: Base de datos privada del sistema de inventario
+  # ---------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: "appuser"       # Coincide con el valor por defecto de tu backend
+      POSTGRES_PASSWORD: "TuClaveSeguraAqui123" # REEMPLAZA CON UNA CLAVE SEGURA
+      POSTGRES_DB: "appdb"           # Coincide con el valor por defecto de tu backend
+    volumes:
+      - "db-data:/var/lib/postgresql/data"
+    networks:
+      - backend-net # Totalmente oculta del exterior por seguridad
+    deploy:
+      placement:
+        constraints: [ "node.role == manager" ]
+      restart_policy:
+        condition: on-failure
 
   # ---------------------------------------------------------------------
   # pgAdmin: Administrador gráfico para tu Base de Datos en la Web
@@ -78,34 +98,32 @@ services:
   pgadmin:
     image: dpage/pgadmin4:latest
     environment:
-      PGADMIN_DEFAULT_EMAIL: "admin@byronrm.com"
-      PGADMIN_DEFAULT_PASSWORD: "CAMBIAR_POR_UNA_CLAVE_SEGURA"
+      PGADMIN_DEFAULT_EMAIL: "admin@byronrm.com" # Tu correo para iniciar sesión en pgAdmin web
+      PGADMIN_DEFAULT_PASSWORD: "TuClavePgadminAqui123" # Tu clave para iniciar sesión en pgAdmin web
       PGADMIN_CONFIG_SERVER_MODE: "True"
     networks:
-      - web
+      - web         # Para que entres por internet
+      - backend-net # Para que se conecte por dentro a la base de datos
     deploy:
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=web"
-        - "traefik.http.routers.pgadmin.rule=Host(`pgpacheco.byronrm.com`)" # Tu subdominio pgadmin
+        - "traefik.http.routers.pgadmin.rule=Host(`pgpacheco.byronrm.com`)"
         - "traefik.http.routers.pgadmin.entrypoints=websecure"
         - "traefik.http.routers.pgadmin.tls.certresolver=le"
         - "traefik.http.services.pgadmin.loadbalancer.server.port=80"
 
   # ---------------------------------------------------------------------
-  # Backend: API Python FastAPI (Conexión Directa a la Web)
+  # Backend: API Python FastAPI (Conexión interna con la BD)
   # ---------------------------------------------------------------------
   backend:
     image: ghcr.io/alexisj3489/proyecto-backend:3.0.0
     environment:
-      # VARIABLES DE TU PROVEEDOR DE BD WEB (RELLENAR):
-      DB_HOST: "URL_DE_TU_BASE_DE_DATOS_EXTERNA.com"
+      DB_HOST: "db" # Apunta al nombre del servicio de arriba
       DB_PORT: "5432"
-      DB_USER: "USUARIO_DE_TU_BD_EN_LA_WEB"
-      DB_PASSWORD: "CONTRASEÑA_DE_TU_BD_EN_LA_WEB"
-      DB_NAME: "NOMBRE_DE_TU_BD_EN_LA_WEB"
-      
-      # CORS: Permite que el Front de Alexis acceda a los recursos de la API
+      DB_USER: "appuser"
+      DB_PASSWORD: "TuClaveSeguraAqui123" # Debe ser exactamente la misma de arriba
+      DB_NAME: "appdb"
       CORS_ORIGINS: "https://bcoronel.byronrm.com"
     networks:
       - web
@@ -115,7 +133,7 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=web"
-        - "traefik.http.routers.backend.rule=Host(`backalexis.byronrm.com`)" # Tu subdominio backend
+        - "traefik.http.routers.backend.rule=Host(`backalexis.byronrm.com`)"
         - "traefik.http.routers.backend.entrypoints=websecure"
         - "traefik.http.routers.backend.tls.certresolver=le"
         - "traefik.http.services.backend.loadbalancer.server.port=8000"
@@ -137,7 +155,7 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.swarm.network=web"
-        - "traefik.http.routers.frontend.rule=Host(`bcoronel.byronrm.com`)" # Tu subdominio frontend
+        - "traefik.http.routers.frontend.rule=Host(`bcoronel.byronrm.com`)"
         - "traefik.http.routers.frontend.entrypoints=websecure"
         - "traefik.http.routers.frontend.tls.certresolver=le"
         - "traefik.http.services.frontend.loadbalancer.server.port=3000"
